@@ -18,13 +18,18 @@ package com.android.example.alwaysonstopwatch;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.content.ContextCompat;
+import android.support.wearable.activity.WearableActivity;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.GridLayout;
 import android.widget.TextClock;
 import android.widget.TextView;
 
@@ -39,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * This activity displays a stopwatch.
  */
-public class StopwatchActivity extends Activity {
+public class StopwatchActivity extends WearableActivity {
 
     private static final String TAG = "StopwatchActivity";
 
@@ -52,6 +57,14 @@ public class StopwatchActivity extends Activity {
     private TextView mTimeView;
     private Button mStartStopButton;
     private Button mResetButton;
+
+    private TextClock mClockView;
+    private TextView mNotice;
+    private View mBackground;
+
+    // Foreground and background color in active view.
+    private int mActiveBackgroundColor;
+    private int mActiveForegroundColor;
 
     // The last time that the stop watch was updated or the start time.
     private long mLastTick = 0L;
@@ -67,7 +80,9 @@ public class StopwatchActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // prevent the screen from staying on
+        // getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.activity_stopwatch);
 
@@ -76,6 +91,15 @@ public class StopwatchActivity extends Activity {
         mResetButton = (Button) findViewById(R.id.resetbtn);
         mTimeView = (TextView) findViewById(R.id.timeview);
         resetTimeView(); // initialise TimeView
+
+        mNotice = (TextView) findViewById(R.id.notice);
+        mClockView = (TextClock) findViewById(R.id.clock);
+        mNotice.getPaint().setAntiAlias(false);
+        mBackground = findViewById(R.id.gridbackground);
+        mActiveBackgroundColor = ContextCompat.getColor(this, R.color.activeBackground);
+        mActiveForegroundColor = ContextCompat.getColor(this, R.color.activeText);
+
+        setAmbientEnabled();
 
         mStartStopButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -111,11 +135,15 @@ public class StopwatchActivity extends Activity {
         setTimeView(minutes, seconds);
 
         // In Active mode update directly via handler.
-        long timeMs = System.currentTimeMillis();
-        long delayMs = ACTIVE_INTERVAL_MS - (timeMs % ACTIVE_INTERVAL_MS);
-        Log.d(TAG, "NOT ambient - delaying by: " + delayMs);
-        mActiveModeUpdateHandler
-                .sendEmptyMessageDelayed(R.id.msg_update, delayMs);
+        if(!isAmbient()) {
+            long timeMs = System.currentTimeMillis();
+            long delayMs = ACTIVE_INTERVAL_MS - (timeMs % ACTIVE_INTERVAL_MS);
+            Log.d(TAG, "NOT ambient - delaying by: " + delayMs);
+            mActiveModeUpdateHandler
+                    .sendEmptyMessageDelayed(R.id.msg_update, delayMs);
+        }
+
+
     }
 
     private void incrementTimeSoFar() {
@@ -167,6 +195,65 @@ public class StopwatchActivity extends Activity {
         }
     }
 
+    @Override
+    public void onEnterAmbient(Bundle ambientDetails) {
+        Log.d(TAG, "ENTER Ambient");
+        super.onEnterAmbient(ambientDetails);
+
+        if (mRunning) {
+            mActiveModeUpdateHandler.removeMessages(R.id.msg_update);
+            mNotice.setVisibility(View.VISIBLE);
+        }
+
+        mActiveClockUpdateHandler.removeMessages(R.id.msg_update);
+
+        mTimeView.setTextColor(Color.WHITE);
+        Paint textPaint = mTimeView.getPaint();
+        textPaint.setAntiAlias(false);
+        textPaint.setStyle(Paint.Style.STROKE);
+        textPaint.setStrokeWidth(2);
+
+        mStartStopButton.setVisibility(View.INVISIBLE);
+        mResetButton.setVisibility(View.INVISIBLE);
+        mBackground.setBackgroundColor(Color.BLACK);
+
+        mClockView.setTextColor(Color.WHITE);
+        mClockView.getPaint().setAntiAlias(false);
+
+        //updateClock();
+    }
+
+    @Override
+    public void onExitAmbient() {
+        Log.d(TAG, "EXIT Ambient");
+        super.onExitAmbient();
+
+        mTimeView.setTextColor(mActiveForegroundColor);
+        Paint textPaint = mTimeView.getPaint();
+        textPaint.setAntiAlias(true);
+        textPaint.setStyle(Paint.Style.FILL);
+
+        mStartStopButton.setVisibility(View.VISIBLE);
+        mResetButton.setVisibility(View.VISIBLE);
+        mBackground.setBackgroundColor(mActiveBackgroundColor);
+
+        mClockView.setTextColor(mActiveForegroundColor);
+        mClockView.getPaint().setAntiAlias(true);
+
+        mActiveClockUpdateHandler.sendEmptyMessage(R.id.msg_update);
+
+        if (mRunning) {
+            mNotice.setVisibility(View.INVISIBLE);
+            updateDisplayAndSetRefresh();
+        }
+    }
+
+    @Override
+    public void onUpdateAmbient() {
+        super.onUpdateAmbient();
+        //updateClock();
+        updateDisplayAndSetRefresh();
+    }
     @Override
     public void onDestroy() {
         Log.d(TAG, "onDestroy()");

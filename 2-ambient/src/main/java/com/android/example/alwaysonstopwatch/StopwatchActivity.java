@@ -131,6 +131,7 @@ public class StopwatchActivity extends WearableActivity {
         Log.d(TAG, "NOT ambient - delaying by: " + delayMs);
         mActiveModeUpdateHandler
                 .sendEmptyMessageDelayed(R.id.msg_update, delayMs);
+
     }
 
     private void incrementTimeSoFar() {

@@ -20,11 +20,17 @@
 
     <uses-feature android:name="android.hardware.type.watch"/>
 
+    <!-- add new permission for wake lock -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
             android:allowBackup="false"
             android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name"
             android:theme="@android:style/Theme.DeviceDefault">
+        <!-- specify that the app should only be installed on devices running Android 5.1 or higher -->
+        <uses-library android:name="com.google.android.wearable" android:required="true" />
+
         <activity
                 android:name=".StopwatchActivity"
                 android:label="@string/app_name"
